@@ -711,10 +711,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def watchdog():
+    parent = int(os.environ.get("KINTSUGI_PARENT") or 0)   # set by the Mac app, which owns this server
     while True:
-        time.sleep(30)
+        time.sleep(2)
+        if parent and os.getppid() != parent:   # the app has gone without stopping us
+            server.shutdown()
+            return
         busy = job is not None and job.state == "running"
-        if not busy and time.time() - last_seen > IDLE_SECONDS:
+        if not parent and not busy and time.time() - last_seen > IDLE_SECONDS:
             server.shutdown()
             return
 
@@ -735,6 +739,10 @@ def main():
     finally:
         if job and job.state == "running":
             job.cancel()
+            for _ in range(40):   # let the job thread remove its partial file
+                if job.state != "running":
+                    break
+                time.sleep(0.1)
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 # Video Kintsugi
 
-Video Kintsugi fixes the sound of recorded lectures and talks, and joins a recording that was saved in parts. It runs on your Mac: a small local server drives [FFmpeg](https://ffmpeg.org), and you work in a page that it opens in your browser. Nothing leaves the machine.
+Video Kintsugi fixes the sound of recorded lectures and talks, and joins a recording that was saved in parts. It is a Mac app that drives [FFmpeg](https://ffmpeg.org) on your own machine; nothing is uploaded. The same interface can also run in your web browser instead of its own window.
 
 - **One recording:** the sound is cleaned up and the video is copied unchanged.
 - **Two or more:** they are joined in the order listed and the sound is cleaned up in the same pass. When the files share a video format (as the parts of one recording do), the video is copied without re-encoding, so a two-hour lecture takes a minute or two. Files that differ are re-encoded with VideoToolbox to match the first.
@@ -35,7 +35,7 @@ The **Command** box shows the exact FFmpeg command that will run, with a button 
 
 ## Installing
 
-Requirements: macOS with [Homebrew](https://brew.sh), and FFmpeg:
+Requirements: macOS 12 or later, Apple's command line tools (`xcode-select --install`, which also provides Python 3), and FFmpeg, most easily from [Homebrew](https://brew.sh):
 
 ```bash
 brew install ffmpeg
@@ -51,13 +51,27 @@ git clone https://github.com/dmberry/video-kintsugi.git ~/Projects/video-kintsug
 ~/Projects/video-kintsugi/make-app.sh
 ```
 
-This makes **Video Kintsugi** in `~/Applications` and a Finder Quick Action of the same name: select one or more videos in Finder, right-click, and choose **Quick Actions › Video Kintsugi** to open them in the app.
+This compiles **Video Kintsugi** into `~/Applications` and adds a Finder Quick Action of the same name. To open recordings in it:
 
-If FFmpeg is missing, the page says so and gives the commands to install it (with a button that runs the Homebrew install in Terminal), and carries on once FFmpeg is found.
+- drag them onto the window or the Dock icon;
+- select them in Finder, right-click, and choose **Quick Actions › Video Kintsugi** or **Open With › Video Kintsugi**;
+- or use **File › Add Recordings…** (⌘O).
 
-Double-click **Video Kintsugi** to start it. It runs a server on `http://127.0.0.1:8767/` (standard-library Python, no packages) and opens the page. The server stops after 15 minutes with no page open and nothing running, or from **File › Quit Video Kintsugi**. Logs go to `~/Library/Logs/Video Kintsugi.log`. The first time it opens a file in Downloads, Desktop or Documents, macOS asks for permission.
+If FFmpeg is missing, the window says so and gives the commands to install it (with a button that runs the Homebrew install in Terminal), and carries on once FFmpeg is found. The first time it opens a file in Downloads, Desktop or Documents, macOS asks for permission. Logs go to `~/Library/Logs/Video Kintsugi.log` (**Help › Show Log**).
 
-The server listens on 127.0.0.1 only, refuses requests with a foreign `Host` header, and refuses write requests without its own header.
+### In the browser instead
+
+The original version runs the same page in your web browser:
+
+```bash
+~/Projects/video-kintsugi/make-app.sh --browser
+```
+
+This makes **Video Kintsugi (Browser)** in `~/Applications`; `launch.sh` does the same from Terminal. The Mac app can also hand its page to the browser with **View › Open in Browser**. Both use one server on `http://127.0.0.1:8767/` when both are open. Started from the browser version, the server stops after 15 minutes with no page open and nothing running.
+
+### How it is built
+
+The app is a native window (`mac/VideoKintsugi.swift`, AppKit and WebKit) around the page. It starts the server, `kintsugi.py` (standard-library Python, no packages), from inside the app bundle and stops it on quit. The server listens on 127.0.0.1 only, refuses requests with a foreign `Host` header, and refuses write requests without its own header.
 
 ## Files
 
@@ -66,7 +80,9 @@ The server listens on 127.0.0.1 only, refuses requests with a foreign `Host` hea
 | `kintsugi.py` | local server: probing files, building the FFmpeg command, running the job, previews, presets |
 | `index.html`, `app.js` | the page |
 | `desk.js` | the filter chain as a mixing desk |
-| `launch.sh`, `make-app.sh` | start the server and open the page; build the `.app` and the Quick Action |
+| `mac/` | the Mac app: `VideoKintsugi.swift` (window, menus, Finder drag and drop, Open With) and its `Info.plist` |
+| `make-app.sh` | build the Mac app (or, with `--browser`, the browser launcher) and the Quick Action |
+| `launch.sh` | start the server and open the page in the browser |
 | `quick-action/` | the Finder Quick Action template |
 | `branding/` | icon, screenshot and the headless-Chrome script used to take it |
 

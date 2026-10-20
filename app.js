@@ -35,6 +35,15 @@ let lastPlan = null;
 let previewTimer = 0;
 let previewBusy = false;
 const prefs = loadPrefs();
+// inside the Mac app (mac/VideoKintsugi.swift) files, folders and the clipboard go through the window
+const NATIVE = !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.kintsugi);
+const native = (msg) => window.webkit.messageHandlers.kintsugi.postMessage(msg);
+if (NATIVE) document.documentElement.classList.add("native");
+
+async function copyText(text) {
+  if (NATIVE) native({ cmd: "copy", text });
+  else await navigator.clipboard.writeText(text);
+}
 
 function loadPrefs() {
   try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; }
@@ -165,6 +174,7 @@ $("files").addEventListener("drop", (e) => {
 });
 
 async function chooseFiles() {
+  if (NATIVE) return native({ cmd: "choose-files", start: files.length ? files[files.length - 1].dir : undefined });
   try {
     const r = await api("/api/choose-files", {});
     addFiles(r.files, r.errors);
@@ -362,9 +372,12 @@ function showDir() {
   $("outdir").textContent = outdir || "Same folder as the first recording";
   $("resetdir").classList.toggle("hidden", !outdir);
 }
+function setOutdir(path) { outdir = path; showDir(); savePrefs(); schedulePlan(); }
 $("choosedir").addEventListener("click", async () => {
-  const r = await api("/api/choose-folder", { start: outdir || (files[0] && files[0].dir) });
-  if (r.path) { outdir = r.path; showDir(); savePrefs(); schedulePlan(); }
+  const start = outdir || (files[0] && files[0].dir);
+  if (NATIVE) return native({ cmd: "choose-folder", start });
+  const r = await api("/api/choose-folder", { start });
+  if (r.path) setOutdir(r.path);
 });
 $("resetdir").addEventListener("click", () => { outdir = ""; showDir(); savePrefs(); schedulePlan(); });
 $("video").addEventListener("change", () => { savePrefs(); schedulePlan(); });
@@ -418,7 +431,7 @@ async function runPlan() {
 
 $("copycmd").addEventListener("click", async () => {
   if (!lastPlan) return;
-  await navigator.clipboard.writeText(lastPlan.shown);
+  await copyText(lastPlan.shown);
   $("copycmd").textContent = "Copied";
   setTimeout(() => { $("copycmd").textContent = "Copy command"; }, 1400);
 });
@@ -533,7 +546,7 @@ function applySetup(s) {
 }
 $("installff").addEventListener("click", () => api("/api/install-ffmpeg", {}).catch((e) => alert(e.message)));
 document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
-  await navigator.clipboard.writeText(document.querySelector(b.dataset.copy).textContent);
+  await copyText(document.querySelector(b.dataset.copy).textContent);
   const t = b.textContent;
   b.textContent = "Copied";
   setTimeout(() => { b.textContent = t; }, 1400);
@@ -631,4 +644,18 @@ document.addEventListener("keydown", (e) => {
   renderFiles();
   showJob(s.job);
   poll();
+  if (NATIVE) native({ cmd: "ready" });
 })();
+
+// what the Mac app's menus call
+window.kintsugi = {
+  addPaths, setOutdir, start, about: () => $("dlg-about").showModal(), howto: () => $("dlg-howto").showModal(),
+  clear: () => { files = []; nameEdited = false; renderFiles(); },
+  cancel: () => api("/api/cancel", {}),
+  reveal: () => { if (lastJob && lastJob.state === "done") api("/api/open", { reveal: true }); },
+  view: (v) => setView(v),
+  save: () => saveToPreset().catch((err) => alert(err.message)),
+  saveAs: openSaveAs, deletePreset, restore: restoreBuiltins,
+  jobRunning: () => !!(lastJob && lastJob.state === "running"),
+  dragOver: (on) => $("drop").classList.toggle("over", on),
+};
