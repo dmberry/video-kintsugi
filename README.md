@@ -68,6 +68,12 @@ The server listens on 127.0.0.1 only, refuses requests with a foreign `Host` hea
 | `quick-action/` | the Finder Quick Action template |
 | `branding/` | icon, screenshot and the headless-Chrome script used to take it |
 
+## The name
+
+Kintsugi (金継ぎ, “golden joinery”) is the Japanese craft of repairing broken pottery with urushi lacquer mixed or dusted with powdered gold. A story often told about its origin concerns the shogun Ashikaga Yoshimasa, who in the fifteenth century is said to have sent a cracked Chinese tea bowl away for repair and received it back held together with metal staples, which led craftsmen to look for a finer method. The repair is left in view: the gold follows the line of each break, so the object's history, including its damage, remains part of how it looks. The practice is often linked to *wabi-sabi*, an aesthetic of the imperfect and impermanent, and to *mottainai*, regret at waste.
+
+Video Kintsugi applies the idea to recordings: it joins a lecture saved in several parts and repairs its sound, so that a flawed recording can still be used. The gold seam in the logo marks the join.
+
 ## Licence
 
 Video Kintsugi is free software, released under the [GNU General Public License, version 3](LICENSE).
