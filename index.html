@@ -201,6 +201,10 @@ summary { cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--tex
 .strip .sf button { font-size: 10px; background: var(--k); color: #a7acb8; border: 1px solid #3a3f4a; border-radius: 5px; padding: 2px 7px; cursor: pointer; }
 .strip .sf button:hover { color: #fff; border-color: #5a606d; }
 
+body.noffmpeg main > section:not(#setup) { opacity: .4; pointer-events: none; }
+.setup { border-color: color-mix(in srgb, var(--amber) 55%, var(--border)); }
+.setup p { margin: 0 0 10px; }
+
 dialog { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); padding: 22px; width: min(520px, calc(100vw - 32px)); box-shadow: 0 20px 60px rgba(5,8,20,.35); }
 .about-dlg { width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
 .about-dlg .about-mark { display: block; width: 72px; height: 72px; margin: 4px auto 10px; }
@@ -252,6 +256,25 @@ dialog .row { justify-content: flex-end; margin-top: 16px; }
 </header>
 
 <main>
+  <section class="card setup hidden" id="setup">
+    <h2>FFmpeg needed</h2>
+    <p class="about">Video Kintsugi uses FFmpeg to read, join and repair recordings, and FFmpeg isn't installed on this Mac.</p>
+    <div id="setup-brew">
+      <p class="about">Homebrew is installed, so one command does it. <b>Install in Terminal</b> opens Terminal and runs it; it takes a few minutes.</p>
+      <div class="cmd"><pre class="brewcmd"></pre></div>
+      <div class="row" style="margin-top:10px"><button class="b primary" id="installff">Install in Terminal</button><button class="b" data-copy=".brewcmd">Copy command</button></div>
+    </div>
+    <div id="setup-nobrew">
+      <p class="about">The simplest way is with <a href="https://brew.sh" target="_blank" rel="noopener">Homebrew</a>, the package manager for macOS. Open Terminal (Applications › Utilities) and paste these in, one after the other. The first asks for your password and may also install Apple's command line tools.</p>
+      <div class="cmd"><pre id="brewinstall">/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</pre></div>
+      <div class="row" style="margin:8px 0 12px"><button class="b" data-copy="#brewinstall">Copy</button></div>
+      <div class="cmd"><pre class="brewcmd"></pre></div>
+      <div class="row" style="margin-top:8px"><button class="b" data-copy=".brewcmd">Copy</button></div>
+      <p class="small muted" style="margin-top:12px">FFmpeg from MacPorts (<code>sudo port install ffmpeg</code>) also works.</p>
+    </div>
+    <p class="small muted">This page checks every few seconds and carries on once FFmpeg is found.</p>
+  </section>
+
   <section class="card">
     <h2><span class="step">1</span> Recordings <span class="aside" id="total"></span></h2>
     <ul id="files"></ul>

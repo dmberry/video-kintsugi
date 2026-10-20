@@ -14,6 +14,11 @@ if ! /usr/bin/curl -fs -o /dev/null "${URL}api/status"; then
     /usr/bin/curl -fs -o /dev/null "${URL}api/status" && break
     sleep 0.1
   done
+  if ! /usr/bin/curl -fs -o /dev/null "${URL}api/status"; then
+    # usually no working python3: on a new Mac, /usr/bin/python3 needs Apple's command line tools
+    /usr/bin/osascript -e 'display alert "Video Kintsugi couldn’t start" message "It needs Python 3. If macOS offered to install the command line developer tools, install them and open Video Kintsugi again; otherwise run “xcode-select --install” in Terminal. Details are in ~/Library/Logs/Video Kintsugi.log." as critical' >/dev/null 2>&1
+    exit 1
+  fi
 fi
 if [ $# -gt 0 ]; then
   "$PY" -c 'import json, sys; print(json.dumps({"paths": sys.argv[1:]}))' "$@" |

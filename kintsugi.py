@@ -13,6 +13,7 @@ import copy
 import glob
 import json
 import os
+import platform
 import re
 import shlex
 import shutil
@@ -35,9 +36,9 @@ STATIC = {"index.html": "text/html; charset=utf-8", "app.js": "text/javascript; 
           "VERSION": "text/plain; charset=utf-8"}
 BRANDING_TYPES = {".svg": "image/svg+xml", ".png": "image/png"}
 
-BIN = "/opt/homebrew/bin"
-FFMPEG = os.path.join(BIN, "ffmpeg")
-FFPROBE = os.path.join(BIN, "ffprobe")
+SEARCH = ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin"]   # Homebrew (Apple, Intel), MacPorts
+BREWS = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
+FFMPEG = FFPROBE = None   # set by find_ffmpeg(); the page explains how to install it while missing
 SUPPORT = os.path.expanduser("~/Library/Application Support/Video Kintsugi")
 PRESETS_FILE = os.path.join(SUPPORT, "presets.json")
 LIST_FILE = os.path.join(SUPPORT, "join-list.txt")   # kept so a copied command still runs
@@ -99,6 +100,33 @@ class JobError(Exception):
 
 
 # ---------------------------------------------------------------- helpers
+
+def find_ffmpeg():
+    global FFMPEG, FFPROBE
+    if FFMPEG:
+        return True
+    for d in SEARCH + os.environ.get("PATH", "").split(":"):
+        f, p = os.path.join(d, "ffmpeg"), os.path.join(d, "ffprobe")
+        if d and os.access(f, os.X_OK) and os.access(p, os.X_OK):
+            FFMPEG, FFPROBE = f, p
+            print("Using %s" % FFMPEG, flush=True)
+            return True
+    return False
+
+
+def brew():
+    return next((b for b in BREWS if os.access(b, os.X_OK)), None)
+
+
+def install_ffmpeg():
+    """Run the Homebrew install in a Terminal window, where its progress and any questions are visible."""
+    b = brew()
+    if not b:
+        raise JobError("Homebrew isn't installed.")
+    cmd = "%s install ffmpeg" % shlex.quote(b)
+    subprocess.run(["osascript", "-e", 'tell application "Terminal"', "-e", "activate",
+                    "-e", "do script %s" % json.dumps(cmd), "-e", "end tell"], capture_output=True)
+
 
 def hms(seconds):
     s = int(seconds)
@@ -584,7 +612,10 @@ class Handler(BaseHTTPRequestHandler):
             if "page" in parse_qs(url.query):
                 last_seen = time.time()
             self._json({"version": VERSION, "queued": len(queue), "page_seen": last_seen,
-                        "job": job.status() if job else None})
+                        "job": job.status() if job else None,
+                        "ffmpeg": FFMPEG if find_ffmpeg() else None, "brew": bool(brew()),
+                        "brew_path": brew() or ("/opt/homebrew/bin/brew" if platform.machine() == "arm64"
+                                                else "/usr/local/bin/brew")})
         elif path == "/api/presets":
             self._json({"presets": load_presets(), "defaults": DEFAULT_PRESETS,
                         "builtin": [p["id"] for p in DEFAULT_PRESETS]})
@@ -607,6 +638,11 @@ class Handler(BaseHTTPRequestHandler):
         try:
             n = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(n) or b"{}")
+            if path == "/api/install-ffmpeg":
+                install_ffmpeg()
+                return self._json({"ok": True})
+            if path not in ("/api/queue", "/api/presets", "/api/quit", "/api/cancel") and not find_ffmpeg():
+                raise JobError("FFmpeg isn't installed, so recordings can't be read yet.")
             if path == "/api/choose-files":
                 ps = osa_choose("file", "Choose the recordings to join, in any order", last_dir, True)
                 if ps:
@@ -685,9 +721,8 @@ def watchdog():
 
 def main():
     global server
-    for tool in (FFMPEG, FFPROBE):
-        if not os.path.isfile(tool):
-            sys.exit("Missing %s (brew install ffmpeg)" % tool)
+    if not find_ffmpeg():
+        print("FFmpeg not found; the page will say how to install it.", flush=True)
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))  # so atexit cleanup runs
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     server.daemon_threads = True

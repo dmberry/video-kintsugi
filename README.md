@@ -2,7 +2,7 @@
 
 # Video Kintsugi
 
-Video Kintsugi is a small Mac app for fixing the sound of recorded lectures and talks. It can also join a recording that was saved in parts. It runs [FFmpeg](https://ffmpeg.org) on your Mac from a page in the browser:
+Video Kintsugi fixes the sound of recorded lectures and talks, and joins a recording that was saved in parts. It runs on your Mac: a small local server drives [FFmpeg](https://ffmpeg.org), and you work in a page that it opens in your browser. Nothing leaves the machine.
 
 - **One recording:** the sound is cleaned up and the video is copied unchanged.
 - **Two or more:** they are joined in the order listed and the sound is cleaned up in the same pass. When the files share a video format (as the parts of one recording do), the video is copied without re-encoding, so a two-hour lecture takes a minute or two. Files that differ are re-encoded with VideoToolbox to match the first.
@@ -52,6 +52,8 @@ git clone https://github.com/dmberry/video-kintsugi.git ~/Projects/video-kintsug
 ```
 
 This makes **Video Kintsugi** in `~/Applications` and a Finder Quick Action of the same name: select one or more videos in Finder, right-click, and choose **Quick Actions › Video Kintsugi** to open them in the app.
+
+If FFmpeg is missing, the page says so and gives the commands to install it (with a button that runs the Homebrew install in Terminal), and carries on once FFmpeg is found.
 
 Double-click **Video Kintsugi** to start it. It runs a server on `http://127.0.0.1:8767/` (standard-library Python, no packages) and opens the page. The server stops after 15 minutes with no page open and nothing running, or from **File › Quit Video Kintsugi**. Logs go to `~/Library/Logs/Video Kintsugi.log`. The first time it opens a file in Downloads, Desktop or Documents, macOS asks for permission.
 

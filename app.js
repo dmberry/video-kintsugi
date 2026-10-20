@@ -520,6 +520,25 @@ function showJob(j) {
   updateStart();
 }
 
+let hadFfmpeg = true;
+function applySetup(s) {
+  const ok = !!s.ffmpeg;
+  document.body.classList.toggle("noffmpeg", !ok);
+  $("setup").classList.toggle("hidden", ok);
+  $("setup-brew").classList.toggle("hidden", !s.brew);
+  $("setup-nobrew").classList.toggle("hidden", s.brew);
+  document.querySelectorAll(".brewcmd").forEach((p) => { p.textContent = `${s.brew_path} install ffmpeg`; });
+  if (ok && !hadFfmpeg) { $("fileerr").textContent = ""; schedulePlan(); }
+  hadFfmpeg = ok;
+}
+$("installff").addEventListener("click", () => api("/api/install-ffmpeg", {}).catch((e) => alert(e.message)));
+document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
+  await navigator.clipboard.writeText(document.querySelector(b.dataset.copy).textContent);
+  const t = b.textContent;
+  b.textContent = "Copied";
+  setTimeout(() => { b.textContent = t; }, 1400);
+}));
+
 let polling = false;
 async function poll() {
   if (polling) return;
@@ -527,6 +546,7 @@ async function poll() {
   try {
     while (true) {
       const s = await api("/api/status?page=1");
+      applySetup(s);
       showJob(s.job);
       if (s.queued) {
         const r = await api("/api/take-queue", {});
@@ -596,6 +616,7 @@ document.addEventListener("keydown", (e) => {
   const s = await api("/api/status?page=1");
   $("ver").textContent = s.version;
   $("aboutver").textContent = s.version;
+  applySetup(s);
   const r = await api("/api/presets");
   presets = r.presets;
   builtin = r.builtin;
