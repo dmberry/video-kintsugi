@@ -48,21 +48,22 @@ PREVIEW_SECONDS = 20
 IDLE_SECONDS = 15 * 60    # exit when no page has polled for this long and nothing is running
 
 DEFAULT_PRESETS = [
-    {"id": "lecture", "name": "Spoken word (lecture)", "bitrate": "96k",
-     "about": "One voice from a laptop or room microphone: mono, hum and hiss removed, "
-              "presence lifted, quiet and loud passages evened out, then set to podcast loudness.",
-     "filters": ["pan=mono|c0=0.5*c0+0.5*c1", "highpass=f=90", "lowpass=f=8000", "afftdn=nf=-25",
-                 "equalizer=f=3000:t=q:w=1:g=3", "dynaudnorm=f=250:g=15:p=0.9:m=8",
-                 "loudnorm=I=-16:TP=-2"]},
-    {"id": "phones", "name": "Spoken word, for phones", "bitrate": "96k",
-     "about": "For viewers on phone and tablet speakers, which play little below 300 Hz: more low cut, "
-              "less boom, more presence, compressed, and set louder (-14 LUFS, as YouTube plays speech).",
+    {"id": "devices", "name": "Spoken word (all devices)", "bitrate": "96k",
+     "about": "The default for lectures and talks. Clear on phone speakers, which play little below "
+              "300 Hz, as well as laptops and headphones: mono, more low cut, less boom, more presence, "
+              "levelled, compressed, and set to -14 LUFS (the level YouTube plays speech at).",
      "filters": ["pan=mono|c0=0.5*c0+0.5*c1", "highpass=f=150", "lowpass=f=9000", "afftdn=nf=-25",
                  "equalizer=f=250:t=q:w=1:g=-3", "equalizer=f=3000:t=q:w=1:g=5",
                  "dynaudnorm=f=250:g=15:p=0.9:m=8",
                  "acompressor=threshold=0.1:ratio=4:attack=5:release=150", "loudnorm=I=-14:TP=-2"]},
+    {"id": "lecture", "name": "Spoken word, podcast level", "bitrate": "96k",
+     "about": "One voice, set to -16 LUFS, the level podcast platforms expect: mono, hum and hiss "
+              "removed, presence lifted, quiet and loud passages evened out. Quieter on phones.",
+     "filters": ["pan=mono|c0=0.5*c0+0.5*c1", "highpass=f=90", "lowpass=f=8000", "afftdn=nf=-25",
+                 "equalizer=f=3000:t=q:w=1:g=3", "dynaudnorm=f=250:g=15:p=0.9:m=8",
+                 "loudnorm=I=-16:TP=-2"]},
     {"id": "compressed", "name": "Spoken word, compressed", "bitrate": "96k",
-     "about": "The lecture preset with a compressor after the levelling, which catches sudden "
+     "about": "The podcast-level preset with a compressor after the levelling, which catches sudden "
               "peaks (laughs, coughs, a raised voice, hard consonants) phrase by phrase.",
      "filters": ["pan=mono|c0=0.5*c0+0.5*c1", "highpass=f=90", "lowpass=f=8000", "afftdn=nf=-25",
                  "equalizer=f=3000:t=q:w=1:g=3",
@@ -73,24 +74,24 @@ DEFAULT_PRESETS = [
               "background noise (fans, air conditioning, traffic).",
      "filters": ["pan=mono|c0=0.5*c0+0.5*c1", "highpass=f=100", "lowpass=f=7500",
                  "afftdn=nr=20:nf=-20:tn=1", "equalizer=f=3000:t=q:w=1:g=4",
-                 "dynaudnorm=f=250:g=15:p=0.9:m=8", "loudnorm=I=-16:TP=-2"]},
+                 "dynaudnorm=f=250:g=15:p=0.9:m=8", "loudnorm=I=-14:TP=-2"]},
     {"id": "far", "name": "Speaker far from the microphone", "bitrate": "96k",
      "about": "For a speaker who moves about or turns away: heavier levelling that lifts "
               "quiet stretches further, so expect more room sound between phrases.",
      "filters": ["pan=mono|c0=0.5*c0+0.5*c1", "highpass=f=80", "lowpass=f=8000", "afftdn=nf=-25",
                  "equalizer=f=2500:t=q:w=1:g=4", "dynaudnorm=f=150:g=31:p=0.9:m=20",
-                 "loudnorm=I=-16:TP=-2"]},
+                 "loudnorm=I=-14:TP=-2"]},
     {"id": "discussion", "name": "Discussion, several voices", "bitrate": "128k",
      "about": "Keeps stereo, so voices stay where they were; removes rumble and hiss and "
               "evens out loud and quiet speakers more gently.",
      "filters": ["highpass=f=80", "afftdn=nf=-28", "dynaudnorm=f=300:g=21:p=0.9:m=6",
-                 "loudnorm=I=-16:TP=-2"]},
+                 "loudnorm=I=-14:TP=-2"]},
     {"id": "light", "name": "Light clean-up", "bitrate": "160k",
      "about": "Stereo, rumble and faint hiss removed, loudness set. Leaves the dynamics alone.",
-     "filters": ["highpass=f=60", "afftdn=nf=-30", "loudnorm=I=-16:TP=-2"]},
+     "filters": ["highpass=f=60", "afftdn=nf=-30", "loudnorm=I=-14:TP=-2"]},
     {"id": "loudness", "name": "Loudness only", "bitrate": "160k",
      "about": "No cleaning: only brings the whole recording to a standard loudness.",
-     "filters": ["loudnorm=I=-16:TP=-2"]},
+     "filters": ["loudnorm=I=-14:TP=-2"]},
     {"id": "none", "name": "No change (join only)", "bitrate": "",
      "about": "The audio is copied as it is when the files allow it, otherwise re-encoded unchanged.",
      "filters": []},

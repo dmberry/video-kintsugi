@@ -13,7 +13,7 @@ The originals are never changed. The result is saved beside the first recording 
 
 ## The sound
 
-<p align="center"><img src="branding/screenshot.png" alt="The filter chain as a mixing desk: seven channel strips from Mono to Loudness, each with an on/off light, knobs and a fader" width="80%"></p>
+<p align="center"><img src="branding/screenshot.png" alt="The default preset, Spoken word (all devices), as a mixing desk: nine channel strips from Mono to Loudness, each with an on/off light, knobs and a fader" width="80%"></p>
 
 The sound goes through a chain of FFmpeg audio filters, shown as a mixing desk with one channel strip per filter, worked from left to right. Each strip has a light that switches it on or off, knobs for its settings and a fader for its main one. Knobs turn by dragging up or down (hold Shift for fine control), by scrolling or with the arrow keys; a double-click resets a knob or fader. **Add a filter** puts a new strip before the final loudness stage. The **Text** view shows the same chain as FFmpeg reads it, one filter per line, and can be edited directly; a line starting with `#` is bypassed.
 
@@ -25,10 +25,10 @@ The presets are starting points:
 
 | Preset | For |
 |---|---|
-| Spoken word (lecture) | One voice from a laptop or room microphone: mono, rumble and hiss removed, presence lifted, levels evened out, set to −16 LUFS (podcast level) |
-| Spoken word, for phones | For viewers on phone and tablet speakers: more low cut, less boom, more presence, compressed, and set to −14 LUFS (the level YouTube plays speech at) |
-| Spoken word, compressed | The lecture preset with a compressor after the levelling, to catch sudden peaks such as laughs, coughs or a raised voice |
-| Spoken word, noisy room | The same, with stronger noise reduction that follows changing noise (fans, air conditioning) |
+| **Spoken word (all devices)** — the default | Lectures and talks for viewers on phones, laptops or headphones: mono, more low cut, less boom, more presence, levelled, compressed, set to −14 LUFS (the level YouTube plays speech at) |
+| Spoken word, podcast level | One voice set to −16 LUFS, the level podcast platforms expect; quieter on phones |
+| Spoken word, compressed | The podcast-level preset with a compressor after the levelling, to catch sudden peaks such as laughs, coughs or a raised voice |
+| Spoken word, noisy room | Stronger noise reduction that follows changing noise (fans, air conditioning) |
 | Speaker far from the microphone | Heavier levelling for a speaker who moves about or turns away |
 | Discussion, several voices | Keeps stereo; gentler levelling across loud and quiet speakers |
 | Light clean-up | Stereo, rumble and faint hiss removed, loudness set |

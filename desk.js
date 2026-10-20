@@ -56,7 +56,7 @@ const Desk = (() => {
         write: (v) => v + "dB" })] },
     loudnorm: { title: "Loudness", what: "Overall loudness target",
       params: [P(["TP", "tp"], "Peak", -9, -0.5, -2, { unit: " dB", step: 0.5 }),
-               P(["I", "i"], "Target", -36, -10, -24, { unit: " LUFS", fader: true, step: 0.5 })] },
+               P(["I", "i"], "Target", -36, -10, -14, { unit: " LUFS", fader: true, step: 0.5 })] },
   };
   const ADDABLE = ["highpass", "lowpass", "afftdn", "anlmdn", "agate", "equalizer", "deesser", "acompressor",
                    "dynaudnorm", "speechnorm", "adeclick", "adeclip", "volume", "loudnorm", "pan"];
@@ -66,7 +66,7 @@ const Desk = (() => {
     equalizer: "equalizer=f=3000:t=q:w=1:g=3", deesser: "deesser=i=0.4",
     acompressor: "acompressor=threshold=0.1:ratio=3:attack=20:release=250",
     dynaudnorm: "dynaudnorm=f=250:g=15:p=0.9:m=8", speechnorm: "speechnorm=e=6:r=0.0001:l=1",
-    adeclick: "adeclick", adeclip: "adeclip", volume: "volume=3dB", loudnorm: "loudnorm=I=-16:TP=-2",
+    adeclick: "adeclick", adeclip: "adeclip", volume: "volume=3dB", loudnorm: "loudnorm=I=-14:TP=-2",
   };
 
   let ta, root, onChange;

@@ -18,7 +18,7 @@ const FILTERS = [
   ["adeclick", "Remove clicks and pops.", "adeclick"],
   ["adeclip", "Repair speech that was recorded too loud and clipped.", "adeclip"],
   ["volume", "Change the level by a fixed amount.", "volume=3dB"],
-  ["loudnorm", "Set the overall loudness, measured over the whole recording first. I=-14 matches YouTube and suits phones; -16 suits podcasts; -23 is broadcast. TP is the peak ceiling.", "loudnorm=I=-16:TP=-2"],
+  ["loudnorm", "Set the overall loudness, measured over the whole recording first. I=-14 matches YouTube and suits phones; -16 suits podcasts; -23 is broadcast. TP is the peak ceiling.", "loudnorm=I=-14:TP=-2"],
 ];
 
 let files = [];
@@ -719,6 +719,10 @@ document.addEventListener("keydown", (e) => {
   $("pvlen").value = prefs.pvlen || 20;
   $("pvauto").checked = prefs.pvauto !== false;
   outdir = prefs.outdir || "";
+  if (!prefs.allDevices) {   // 0.1.4 made "Spoken word (all devices)" the default; start there once
+    delete prefs.preset;
+    prefs.allDevices = true;
+  }
   showDir();
   Desk.init($("filters"), $("desk"), $("addfilter"), chainChanged);
   selectPreset(prefs.preset);
