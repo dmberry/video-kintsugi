@@ -24,6 +24,7 @@ The presets are starting points:
 | Preset | For |
 |---|---|
 | Spoken word (lecture) | One voice from a laptop or room microphone: mono, rumble and hiss removed, presence lifted, levels evened out, set to −16 LUFS |
+| Spoken word, compressed | The lecture preset with a compressor before the levelling, to catch sudden peaks such as laughs, coughs or a raised voice |
 | Spoken word, noisy room | The same, with stronger noise reduction that follows changing noise (fans, air conditioning) |
 | Speaker far from the microphone | Heavier levelling for a speaker who moves about or turns away |
 | Discussion, several voices | Keeps stereo; gentler levelling across loud and quiet speakers |

@@ -54,6 +54,13 @@ DEFAULT_PRESETS = [
      "filters": ["pan=mono|c0=0.5*c0+0.5*c1", "highpass=f=90", "lowpass=f=8000", "afftdn=nf=-25",
                  "equalizer=f=3000:t=q:w=1:g=3", "dynaudnorm=f=250:g=15:p=0.9:m=8",
                  "loudnorm=I=-16:TP=-1.5:LRA=7"]},
+    {"id": "compressed", "name": "Spoken word, compressed", "bitrate": "96k",
+     "about": "The lecture preset with a compressor before the levelling, which catches sudden "
+              "peaks (laughs, coughs, a raised voice, hard consonants) phrase by phrase.",
+     "filters": ["pan=mono|c0=0.5*c0+0.5*c1", "highpass=f=90", "lowpass=f=8000", "afftdn=nf=-25",
+                 "equalizer=f=3000:t=q:w=1:g=3",
+                 "acompressor=threshold=0.1:ratio=3:attack=10:release=200",
+                 "dynaudnorm=f=250:g=15:p=0.9:m=8", "loudnorm=I=-16:TP=-1.5:LRA=7"]},
     {"id": "noisy", "name": "Spoken word, noisy room", "bitrate": "96k",
      "about": "As the lecture preset, with stronger noise reduction that follows changing "
               "background noise (fans, air conditioning, traffic).",
