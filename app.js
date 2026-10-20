@@ -18,7 +18,7 @@ const FILTERS = [
   ["adeclick", "Remove clicks and pops.", "adeclick"],
   ["adeclip", "Repair speech that was recorded too loud and clipped.", "adeclip"],
   ["volume", "Change the level by a fixed amount.", "volume=3dB"],
-  ["loudnorm", "Set the overall loudness. I=-16 suits podcasts and lecture capture; -23 is broadcast.", "loudnorm=I=-16:TP=-1.5:LRA=7"],
+  ["loudnorm", "Set the overall loudness, measured over the whole recording first. I=-14 matches YouTube and suits phones; -16 suits podcasts; -23 is broadcast. TP is the peak ceiling.", "loudnorm=I=-16:TP=-2"],
 ];
 
 let files = [];
@@ -494,6 +494,73 @@ function updateStart() {
     (lastPlan.reencode ? "; re-encoding the video takes a while" : "") : "";
 }
 
+// ---------------------------------------------------------------- watching: loudness lanes
+
+let lanes = { before: [], after: [], gen: -1 };
+let laneJob = null;
+
+function drawLanes(j) {
+  const c = $("lanes");
+  const w = c.clientWidth, h = c.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (!w) return;
+  c.width = w * dpr;
+  c.height = h * dpr;
+  const g = c.getContext("2d");
+  g.scale(dpr, dpr);
+  const total = j.total || 1, top = -6, bottom = -60;
+  const x = (t) => (t / total) * w;
+  const y = (v) => h - ((Math.max(bottom, Math.min(top, v)) - bottom) / (top - bottom)) * h;
+  g.font = "10px ui-monospace, Menlo, monospace";
+  g.fillStyle = "#6f7480";
+  for (const v of [-50, -40, -30, -20, -10]) {
+    g.fillRect(0, y(v), w, 1 / dpr);
+    g.fillText(v + "", 4, y(v) - 3);
+  }
+  const area = (vals, fill, stroke) => {
+    if (!vals.length) return;
+    g.beginPath();
+    g.moveTo(x(0), h);
+    vals.forEach((v, t) => g.lineTo(x(t + 0.5), y(v)));
+    g.lineTo(x(vals.length), h);
+    g.closePath();
+    g.fillStyle = fill;
+    g.fill();
+    if (stroke) {
+      g.beginPath();
+      vals.forEach((v, t) => (t ? g.lineTo : g.moveTo).call(g, x(t + 0.5), y(v)));
+      g.strokeStyle = stroke;
+      g.lineWidth = 1.2;
+      g.stroke();
+    }
+  };
+  area(lanes.after, "rgba(217,170,63,.22)");
+  area(lanes.before, "rgba(111,116,128,.7)");
+  area(lanes.after, "rgba(0,0,0,0)", "#d9aa3f");
+  if (j.target != null) {
+    g.setLineDash([5, 4]);
+    g.strokeStyle = "#e9eaee";
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(0, y(j.target));
+    g.lineTo(w, y(j.target));
+    g.stroke();
+    g.setLineDash([]);
+    g.fillStyle = "#e9eaee";
+    g.fillText(`${j.target} LUFS`, w - 62, y(j.target) - 4);
+  }
+  if (j.state === "running" && j.stage === "Writing") {
+    g.fillStyle = "#e9eaee";
+    g.fillRect(x(j.done), 0, 1.5, h);
+  }
+}
+
+function showSteps(j) {
+  const order = ["Measuring", "Levelling", "Writing", "Checking"];
+  const now = j.state === "done" ? order.length : order.indexOf(j.stage);
+  $("steps").innerHTML = order.map((s, i) =>
+    `<li class="${i < now ? "done" : i === now ? "now" : ""}">${s}${s === "Levelling" && j.passes > 3 ? ` (${j.passes - 2} passes)` : ""}</li>`).join("");
+}
+
 async function start() {
   if ($("start").disabled) return;
   $("joberr").textContent = "";
@@ -501,6 +568,7 @@ async function start() {
   try {
     await api("/api/run", opts());
     lastJob = { state: "running" };
+    lanes = { before: [], after: [], gen: -1 };
     $("progress").classList.remove("hidden");
     $("barfill").style.width = "0";
     updateStart();
@@ -513,17 +581,31 @@ $("cancel").addEventListener("click", () => api("/api/cancel", {}));
 function showJob(j) {
   lastJob = j;
   if (!j) return;
+  if (j.lanes) {
+    if (laneJob !== j.out) {   // another job: start the lanes again from its first reading
+      lanes = { before: [], after: [], gen: -1 };
+      laneJob = j.out;
+    } else {
+      lanes.before = lanes.before.concat(j.lanes.before);
+      lanes.after = j.gen !== lanes.gen ? j.lanes.after : lanes.after.concat(j.lanes.after);
+      lanes.gen = j.gen;
+    }
+  }
+  const watching = j.stage != null || (j.state === "done" && lanes.before.length > 0);
+  $("watch").classList.toggle("hidden", !watching);
+  if (watching) { showSteps(j); drawLanes(j); }
   $("barfill").style.width = (j.fraction * 100).toFixed(1) + "%";
   if (j.state === "running") {
     $("progress").classList.remove("hidden");
-    $("state").textContent = `${hms(j.done)} of ${hms(j.total)}` + (j.speed ? ` · ${Math.round(j.speed)}× real time` : "") +
+    $("state").textContent = (j.stage ? `${j.stage} · ` : "") + (j.stage === "Checking" ? "" : `${hms(j.done)} of ${hms(j.total)}`) + (j.speed ? ` · ${Math.round(j.speed)}× real time` : "") +
       (j.left != null ? ` · about ${j.left < 60 ? Math.max(1, Math.round(j.left)) + " s" : Math.round(j.left / 60) + " min"} left` : "");
   } else {
     $("progress").classList.add("hidden");
     if (j.state === "done") {
       $("result").classList.remove("hidden");
       $("donename").textContent = "Saved " + j.out.split("/").pop();
-      $("donemeta").textContent = `· ${size(j.size)} · took ${hms(j.elapsed)}`;
+      $("donemeta").textContent = `· ${size(j.size)} · took ${hms(j.elapsed)}` +
+        (j.result && j.result.lufs != null ? ` · loudness ${j.measured != null ? j.measured.toFixed(1) + " → " : ""}${j.result.lufs.toFixed(1)} LUFS, peaks ${j.result.peak != null ? j.result.peak.toFixed(1) : "?"} dB` : "");
       $("m-reveal").disabled = false;
     } else {
       $("joberr").textContent = j.state === "cancelled" ? "Cancelled. Nothing was saved." : j.error;
@@ -558,7 +640,7 @@ async function poll() {
   polling = true;
   try {
     while (true) {
-      const s = await api("/api/status?page=1");
+      const s = await api(`/api/status?page=1&lb=${lanes.before.length}&la=${lanes.after.length}&gen=${lanes.gen}`);
       applySetup(s);
       showJob(s.job);
       if (s.queued) {

@@ -19,12 +19,15 @@ The sound goes through a chain of FFmpeg audio filters, shown as a mixing desk w
 
 **Listen before and after** renders a short clip from any point in the recording twice, untouched and through the chain, with the loudness of each. While *Update as the chain changes* is ticked, the preview is made again whenever a knob or fader moves, and playback carries on from the same place.
 
+**Loudness.** When the chain ends with a Loudness strip, the job runs in passes. It measures the whole recording through the chain, applies the gain that reaches the target with a limiter holding the peaks below the ceiling, measures again and adjusts until the result is within 0.3 LU of the target (the limiter takes back more as the gain rises), then writes the file and measures the finished file. FFmpeg's own single-pass `loudnorm` undershoots on long speech recordings: a lecture aimed at −16 LUFS came out at −17.5 with peaks over 0 dBFS. While the job runs, the window shows the steps and two loudness lanes across the recording, the original in grey and the result in gold, against the target.
+
 The presets are starting points:
 
 | Preset | For |
 |---|---|
-| Spoken word (lecture) | One voice from a laptop or room microphone: mono, rumble and hiss removed, presence lifted, levels evened out, set to −16 LUFS |
-| Spoken word, compressed | The lecture preset with a compressor before the levelling, to catch sudden peaks such as laughs, coughs or a raised voice |
+| Spoken word (lecture) | One voice from a laptop or room microphone: mono, rumble and hiss removed, presence lifted, levels evened out, set to −16 LUFS (podcast level) |
+| Spoken word, for phones | For viewers on phone and tablet speakers: more low cut, less boom, more presence, compressed, and set to −14 LUFS (the level YouTube plays speech at) |
+| Spoken word, compressed | The lecture preset with a compressor after the levelling, to catch sudden peaks such as laughs, coughs or a raised voice |
 | Spoken word, noisy room | The same, with stronger noise reduction that follows changing noise (fans, air conditioning) |
 | Speaker far from the microphone | Heavier levelling for a speaker who moves about or turns away |
 | Discussion, several voices | Keeps stereo; gentler levelling across loud and quiet speakers |

@@ -53,37 +53,44 @@ DEFAULT_PRESETS = [
               "presence lifted, quiet and loud passages evened out, then set to podcast loudness.",
      "filters": ["pan=mono|c0=0.5*c0+0.5*c1", "highpass=f=90", "lowpass=f=8000", "afftdn=nf=-25",
                  "equalizer=f=3000:t=q:w=1:g=3", "dynaudnorm=f=250:g=15:p=0.9:m=8",
-                 "loudnorm=I=-16:TP=-1.5:LRA=7"]},
+                 "loudnorm=I=-16:TP=-2"]},
+    {"id": "phones", "name": "Spoken word, for phones", "bitrate": "96k",
+     "about": "For viewers on phone and tablet speakers, which play little below 300 Hz: more low cut, "
+              "less boom, more presence, compressed, and set louder (-14 LUFS, as YouTube plays speech).",
+     "filters": ["pan=mono|c0=0.5*c0+0.5*c1", "highpass=f=150", "lowpass=f=9000", "afftdn=nf=-25",
+                 "equalizer=f=250:t=q:w=1:g=-3", "equalizer=f=3000:t=q:w=1:g=5",
+                 "dynaudnorm=f=250:g=15:p=0.9:m=8",
+                 "acompressor=threshold=0.1:ratio=4:attack=5:release=150", "loudnorm=I=-14:TP=-2"]},
     {"id": "compressed", "name": "Spoken word, compressed", "bitrate": "96k",
-     "about": "The lecture preset with a compressor before the levelling, which catches sudden "
+     "about": "The lecture preset with a compressor after the levelling, which catches sudden "
               "peaks (laughs, coughs, a raised voice, hard consonants) phrase by phrase.",
      "filters": ["pan=mono|c0=0.5*c0+0.5*c1", "highpass=f=90", "lowpass=f=8000", "afftdn=nf=-25",
                  "equalizer=f=3000:t=q:w=1:g=3",
-                 "acompressor=threshold=0.1:ratio=3:attack=10:release=200",
-                 "dynaudnorm=f=250:g=15:p=0.9:m=8", "loudnorm=I=-16:TP=-1.5:LRA=7"]},
+                 "dynaudnorm=f=250:g=15:p=0.9:m=8",
+                 "acompressor=threshold=0.1:ratio=3:attack=10:release=200", "loudnorm=I=-16:TP=-2"]},
     {"id": "noisy", "name": "Spoken word, noisy room", "bitrate": "96k",
      "about": "As the lecture preset, with stronger noise reduction that follows changing "
               "background noise (fans, air conditioning, traffic).",
      "filters": ["pan=mono|c0=0.5*c0+0.5*c1", "highpass=f=100", "lowpass=f=7500",
                  "afftdn=nr=20:nf=-20:tn=1", "equalizer=f=3000:t=q:w=1:g=4",
-                 "dynaudnorm=f=250:g=15:p=0.9:m=8", "loudnorm=I=-16:TP=-1.5:LRA=7"]},
+                 "dynaudnorm=f=250:g=15:p=0.9:m=8", "loudnorm=I=-16:TP=-2"]},
     {"id": "far", "name": "Speaker far from the microphone", "bitrate": "96k",
      "about": "For a speaker who moves about or turns away: heavier levelling that lifts "
               "quiet stretches further, so expect more room sound between phrases.",
      "filters": ["pan=mono|c0=0.5*c0+0.5*c1", "highpass=f=80", "lowpass=f=8000", "afftdn=nf=-25",
                  "equalizer=f=2500:t=q:w=1:g=4", "dynaudnorm=f=150:g=31:p=0.9:m=20",
-                 "loudnorm=I=-16:TP=-1.5:LRA=7"]},
+                 "loudnorm=I=-16:TP=-2"]},
     {"id": "discussion", "name": "Discussion, several voices", "bitrate": "128k",
      "about": "Keeps stereo, so voices stay where they were; removes rumble and hiss and "
               "evens out loud and quiet speakers more gently.",
      "filters": ["highpass=f=80", "afftdn=nf=-28", "dynaudnorm=f=300:g=21:p=0.9:m=6",
-                 "loudnorm=I=-16:TP=-1.5:LRA=9"]},
+                 "loudnorm=I=-16:TP=-2"]},
     {"id": "light", "name": "Light clean-up", "bitrate": "160k",
      "about": "Stereo, rumble and faint hiss removed, loudness set. Leaves the dynamics alone.",
-     "filters": ["highpass=f=60", "afftdn=nf=-30", "loudnorm=I=-16:TP=-1.5:LRA=11"]},
+     "filters": ["highpass=f=60", "afftdn=nf=-30", "loudnorm=I=-16:TP=-2"]},
     {"id": "loudness", "name": "Loudness only", "bitrate": "160k",
      "about": "No cleaning: only brings the whole recording to a standard loudness.",
-     "filters": ["loudnorm=I=-16:TP=-1.5:LRA=11"]},
+     "filters": ["loudnorm=I=-16:TP=-2"]},
     {"id": "none", "name": "No change (join only)", "bitrate": "",
      "about": "The audio is copied as it is when the files allow it, otherwise re-encoded unchanged.",
      "filters": []},
@@ -240,6 +247,75 @@ def check_chain(af):
         return None
     lines = [l for l in r.stderr.strip().splitlines() if l.strip()]
     return lines[0] if lines else "ffmpeg rejected the filter chain."
+
+
+# ---------------------------------------------------------------- loudness in two passes
+#
+# Single-pass loudnorm undershoots on long speech recordings (a lecture aimed at -16 LUFS came out at
+# -17.5, with peaks over 0 dBFS after AAC encoding). When the chain ends in loudnorm, the job replaces it:
+# it measures the chain without it, applies the gain that reaches the target and a limiter for the peaks,
+# measures again to make up what the limiter took, and only then writes the file.
+
+LOUDNORM_LAST = re.compile(r"(?:^|,)loudnorm(?:=([^,]*))?$")
+
+
+def loudnorm_target(af):
+    """(chain before a final loudnorm, target LUFS, peak ceiling dB), or None."""
+    m = LOUDNORM_LAST.search(af or "")
+    if not m:
+        return None
+    opts = {}
+    for o in (m.group(1) or "").split(":"):
+        k, _, v = o.partition("=")
+        opts[k.strip().lower()] = v.strip()
+    try:
+        target = float(opts.get("i", "-24"))
+        peak = float(opts.get("tp", "-2"))
+    except ValueError:
+        return None
+    return af[:m.start()], target, min(peak, -0.5)
+
+
+def measured_lufs(text):
+    i = re.findall(r"I:\s+(-?[\d.]+|-inf) LUFS", text)
+    return float(i[-1]) if i and i[-1] != "-inf" else None
+
+
+# short-term (3 s) loudness, one reading every 0.1 s
+FRAME = re.compile(r"\[ebur128@(before|after) @ [^\]]+\] t: ([\d.]+)\s+TARGET:\S+ LUFS\s+M:\s*-?[\d.]+\s+S:\s*(-?[\d.]+)")
+SUMMARY = re.compile(r"\[ebur128@(before|after) @ [^\]]+\] Summary:")
+INTEGRATED = re.compile(r"^\s+I:\s+(-?[\d.]+|-inf) LUFS")
+
+
+def gain_for(target, lufs):
+    return 0.0 if lufs is None else max(-30.0, min(40.0, target - lufs))
+
+
+def settle(measure, target, gain, tries=4):
+    """Find the gain that reaches the target through the limiter, which takes more the louder it goes.
+    measure(gain) returns the loudness it gives; each try moves along the slope of the last two."""
+    points = []
+    for _ in range(tries):
+        got = measure(gain)
+        if got is None:
+            break
+        points.append((gain, got))
+        miss = target - got
+        if abs(miss) < 0.3:
+            break
+        slope = 1.0
+        if len(points) > 1 and points[-1][0] != points[-2][0]:
+            slope = min(1.0, max(0.2, (points[-1][1] - points[-2][1]) / (points[-1][0] - points[-2][0])))
+        gain = max(-30.0, min(40.0, gain + miss / slope))
+    return gain
+
+
+def level_chain(before, target, peak, lufs, gain=None):
+    if gain is None:
+        gain = gain_for(target, lufs)
+    limit = max(0.0625, 10 ** (peak / 20))
+    tail = "volume=%.2fdB,alimiter=limit=%.4f:attack=5:release=50:level=false:latency=true" % (gain, limit)
+    return before + "," + tail if before else tail
 
 
 # ---------------------------------------------------------------- presets
@@ -402,17 +478,51 @@ def plan(opts):
         cmd += ["-movflags", "+faststart"]
     cmd += [out]
 
+    loud = None
+    processed = af and (first["audio"] if n == 1 else not copy_audio)
+    lt = loudnorm_target(af) if processed else None
+    if lt:
+        before, target, peak = lt
+        if n == 1:
+            i = cmd.index("-af") + 1
+            inputs, graph, src = cmd[:5], "", "[0:a:0]"
+        else:
+            i = cmd.index("-filter_complex") + 1
+            inputs, graph, src = cmd[:i - 1], cmd[i].rpartition("[j]")[0], "[j]"
+        loud = {"index": i, "af": af, "before": before, "target": target, "peak": peak,
+                "inputs": inputs, "graph": graph, "src": src, "vsink": ";[v]nullsink" if reencode else ""}
+        notes.append("The loudness is measured over the whole recording, then set to %g LUFS with peaks "
+                     "held below %g dB, checked again after the limiter, and the file written." % (target, peak))
+
     if has_video and not reencode:
         notes.insert(0, "The video is copied without re-encoding%s." % (", as the files share a format" if n > 1 else ""))
     if copy_audio or (n == 1 and not af):
         notes.append("The sound is copied unchanged.")
     home = os.path.expanduser("~") + "/"
     # ~/'Library/…' still expands in a shell, and keeps the home folder's name off the screen
-    shown = " ".join(("~/" + shlex.quote(a[len(home):])) if a.startswith(home) else shlex.quote(a)
-                     for a in ["ffmpeg"] + cmd[1:])
+    show = lambda c: " ".join(("~/" + shlex.quote(a[len(home):])) if a.startswith(home) else shlex.quote(a)
+                              for a in ["ffmpeg"] + c[1:])
+    if loud:
+        final = list(cmd)
+        final[loud["index"]] = final[loud["index"]].replace(
+            af, level_chain(loud["before"], loud["target"], loud["peak"], None).replace("volume=0.00dB", "volume=GAIN"))
+        shown = ("# 1. measure the loudness\n" + show(measure_cmd(loud, before_lane=True)) +
+                 "\n\n# 2. write it, with GAIN = %g minus the loudness measured in step 1\n" % loud["target"] + show(final))
+    else:
+        shown = show(cmd)
     return {"cmd": cmd, "shown": shown, "out": out, "total": total, "notes": notes,
             "files": files, "filters": af, "chain_error": check_chain(af) if af else None,
-            "reencode": reencode}
+            "reencode": reencode, "loud": loud}
+
+
+def measure_cmd(loud, chain=None, before_lane=False):
+    """Run the chain (by default, everything before loudnorm) into loudness meters, writing nothing."""
+    chain = loud["before"] if chain is None else chain
+    g = loud["graph"] + loud["src"]
+    if before_lane:
+        g += "asplit[kr][kc];[kr]ebur128@before=framelog=info,anullsink;[kc]"
+    g += (chain + "," if chain else "") + "ebur128@after=framelog=info[ka]" + loud["vsink"]
+    return loud["inputs"] + ["-filter_complex", g, "-map", "[ka]", "-f", "null", "-"]
 
 
 # ---------------------------------------------------------------- the job
@@ -431,28 +541,59 @@ class Job:
         self.finished = None
         self.proc = None
         self.cancelled = False
-        self.tail = []
+        self.log = []
+        self.stage = None
+        self.passes = 3 if p["loud"] else 1   # measure, level (more if needed), write
+        self.last_gain = 0.0
+        self.lane_gen = 0
+        self.pass_no = 0
+        self.measured = None   # loudness of the original
+        self.integrated = {}
+        self.lanes = {"before": [], "after": []}
+        self.result = None
 
     def run(self):
-        cmd = self.plan["cmd"][:-1] + ["-progress", "pipe:1", "-nostats", "-loglevel", "error",
-                                        "-y", self.partial]
+        loud = self.plan["loud"]
+        cmd = list(self.plan["cmd"])
+        meter = ["-progress", "pipe:1", "-nostats", "-loglevel", "info"]
         try:
-            self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            threading.Thread(target=self._read_err, daemon=True).start()
-            for line in self.proc.stdout:
-                k, _, v = line.strip().partition("=")
-                if k == "out_time_us" and v.isdigit():
-                    self.done_s = int(v) / 1e6
-                elif k == "speed" and v.endswith("x"):
-                    try:
-                        self.speed = float(v[:-1])
-                    except ValueError:
-                        pass
-            code = self.proc.wait()
-            if self.cancelled:
-                raise JobError("Cancelled.")
-            if code != 0 or not os.path.isfile(self.partial):
-                raise JobError("\n".join(self.tail[-6:]) or "ffmpeg stopped (exit %d)." % code)
+            if loud:
+                target, peak = loud["target"], loud["peak"]
+                self._pass(0, "Measuring", measure_cmd(loud, before_lane=True) + meter)
+                self.measured = self.integrated.get("before")
+                tries = []
+
+                def measure(gain):
+                    if tries:
+                        self.passes += 1   # another levelling pass
+                    tries.append(gain)
+                    self.lanes["after"] = []
+                    self.lane_gen += 1
+                    self._pass(len(tries), "Levelling",
+                               measure_cmd(loud, level_chain(loud["before"], target, peak, None, gain)) + meter)
+                    self.last_gain = gain
+                    return self.integrated.get("after")
+                gain = settle(measure, target, gain_for(target, self.integrated.get("after")))
+                shift = gain - self.last_gain
+                self.lanes["after"] = [round(v + shift, 1) for v in self.lanes["after"]]
+                self.lane_gen += 1
+                print("loudness %s LUFS; gain %.2f dB after %d levelling passes"
+                      % (self.measured, gain, len(tries)), flush=True)
+                cmd[loud["index"]] = cmd[loud["index"]].replace(
+                    loud["af"], level_chain(loud["before"], target, peak, None, gain))
+            self._pass(self.passes - 1, "Writing",
+                       cmd[:-1] + ["-progress", "pipe:1", "-nostats", "-loglevel", "error", "-y", self.partial])
+            if not os.path.isfile(self.partial):
+                raise JobError("ffmpeg wrote nothing.")
+            if loud:   # quick: the sound alone, to report what the file really measures
+                self.stage = "Checking"
+                r = subprocess.run([FFMPEG, "-hide_banner", "-nostats", "-i", self.partial, "-map", "0:a:0",
+                                    "-af", "ebur128=peak=true", "-f", "null", "-"], capture_output=True, text=True)
+                summary = r.stderr[r.stderr.rfind("Summary:"):]
+                i = re.findall(r"I:\s+(-?[\d.]+) LUFS", summary)
+                p = re.findall(r"Peak:\s+(-?[\d.]+|-inf) dBFS", summary)
+                self.result = {"lufs": float(i[0]) if i else None,
+                               "peak": float(p[-1]) if p and p[-1] != "-inf" else None}
             out = self.out
             if os.path.exists(out):   # something took the name while we worked
                 stem, ext = os.path.splitext(os.path.basename(out))
@@ -469,25 +610,71 @@ class Job:
             self.finished = time.time()
             print("[%s] %s → %s" % (time.strftime("%H:%M:%S"), self.state, self.out), flush=True)
 
+    def _pass(self, no, stage, cmd):
+        self.pass_no, self.stage, self.done_s, self.speed = no, stage, 0.0, None
+        self.log = []
+        self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        reader = threading.Thread(target=self._read_err, daemon=True)
+        reader.start()
+        for line in self.proc.stdout:
+            k, _, v = line.strip().partition("=")
+            if k == "out_time_us" and v.isdigit():
+                self.done_s = int(v) / 1e6
+            elif k == "speed" and v.endswith("x"):
+                try:
+                    self.speed = float(v[:-1])
+                except ValueError:
+                    pass
+        code = self.proc.wait()
+        reader.join(5)
+        if self.cancelled:
+            raise JobError("Cancelled.")
+        if code != 0:
+            errors = [l for l in self.log if "rror" in l or "nvalid" in l] or self.log
+            raise JobError("\n".join(errors[-6:]) or "ffmpeg stopped (exit %d)." % code)
+
     def _read_err(self):
+        summary = None
         for line in self.proc.stderr:
+            m = FRAME.match(line)
+            if m:   # one reading every 0.1 s; the lanes keep one a second
+                lane, t = self.lanes[m.group(1)], float(m.group(2))
+                if int(t) >= len(lane):
+                    lane.append(max(-70.0, float(m.group(3))))
+                continue
+            m = SUMMARY.match(line)
+            if m:
+                summary = m.group(1)
+                continue
+            m = INTEGRATED.match(line)
+            if m and summary:
+                self.integrated[summary] = None if m.group(1) == "-inf" else float(m.group(1))
+                summary = None
+                continue
             if line.strip():
-                self.tail = (self.tail + [line.rstrip()])[-40:]
+                self.log.append(line.rstrip())
 
     def cancel(self):
         self.cancelled = True
         if self.proc and self.proc.poll() is None:
             self.proc.terminate()
 
-    def status(self):
+    def status(self, lb=0, la=0, gen=-1):
         total = self.plan["total"] or 1
+        if gen != self.lane_gen:
+            la = 0
         elapsed = (self.finished or time.time()) - self.started
         left = None
         if self.speed and self.state == "running":
-            left = max(0, (total - self.done_s) / self.speed)
+            left = max(0, (total - self.done_s) / self.speed + (self.passes - 1 - self.pass_no) * total / self.speed)
+        fraction = (self.pass_no + min(1, self.done_s / total)) / self.passes
         return {"state": self.state, "error": self.error, "out": self.out,
                 "done": round(self.done_s, 1), "total": round(total, 1),
-                "fraction": min(1, self.done_s / total) if self.state != "done" else 1,
+                "stage": self.stage if self.passes > 1 else None, "measured": self.measured,
+                "pass": self.pass_no, "passes": self.passes, "result": self.result,
+                "target": self.plan["loud"]["target"] if self.plan["loud"] else None,
+                "lanes": {"before": self.lanes["before"][lb:], "after": self.lanes["after"][la:]}, "gen": self.lane_gen,
+                "fraction": fraction if self.state != "done" else 1,
                 "speed": self.speed, "elapsed": round(elapsed, 1), "left": left,
                 "size": os.path.getsize(self.out) if self.state == "done" else None}
 
@@ -518,14 +705,26 @@ def make_preview(opts):
     for old in glob.glob(os.path.join(PREVIEW_ROOT, "*.wav")):
         os.remove(old)
     result = {"token": token, "file": f["name"], "from": off, "at": start + off, "length": length}
+    # read a little earlier so the levelling filters have settled when the clip starts
+    lead = min(off, 5.0)
+    clip = [FFMPEG, "-hide_banner", "-nostdin", "-ss", "%.3f" % (off - lead), "-t", "%.3f" % (length + lead),
+            "-i", f["path"], "-vn", "-map", "0:a:0"]
+    trim = "atrim=start=%.3f,asetpts=PTS-STARTPTS" % lead
+    lt = loudnorm_target(af)
+    if lt:   # as in the job: measure, then settle the gain through the limiter
+        before, target, peak = lt
+
+        def lufs(chain):
+            r = subprocess.run(clip + ["-af", ",".join(x for x in (base, chain, trim, "ebur128=framelog=quiet") if x),
+                                       "-f", "null", "-"], capture_output=True, text=True)
+            return measured_lufs(r.stderr)
+        gain = settle(lambda g: lufs(level_chain(before, target, peak, None, g)), target,
+                      gain_for(target, lufs(before)))
+        af = level_chain(before, target, peak, None, gain)
     for which, filt in (("before", base), ("after", base + ("," + af if af else ""))):
         dest = os.path.join(PREVIEW_ROOT, "%s-%s.wav" % (which, token))
-        # read a little earlier so the levelling filters have settled when the clip starts
-        lead = min(off, 5.0)
-        r = subprocess.run([FFMPEG, "-hide_banner", "-nostdin", "-loglevel", "error", "-ss", "%.3f" % (off - lead),
-                            "-t", "%.3f" % (length + lead), "-i", f["path"], "-vn", "-map", "0:a:0",
-                            "-af", "%s,atrim=start=%.3f,asetpts=PTS-STARTPTS" % (filt, lead),
-                            "-c:a", "pcm_s16le", "-y", dest], capture_output=True, text=True)
+        r = subprocess.run(clip + ["-loglevel", "error", "-af", "%s,%s" % (filt, trim), "-c:a", "pcm_s16le",
+                                   "-y", dest], capture_output=True, text=True)
         if r.returncode != 0:
             raise JobError((r.stderr.strip().splitlines() or ["preview failed"])[-1])
         result[which] = loudness(dest)
@@ -616,10 +815,12 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:
                 self._json({"error": "not found"}, 404)
         elif path == "/api/status":
-            if "page" in parse_qs(url.query):
+            q = parse_qs(url.query)
+            if "page" in q:
                 last_seen = time.time()
             self._json({"version": VERSION, "queued": len(queue), "page_seen": last_seen,
-                        "job": job.status() if job else None,
+                        "job": job.status(*(int((q.get(k) or ["0"])[0]) for k in ("lb", "la")),
+                                                      int((q.get("gen") or ["-1"])[0])) if job else None,
                         "ffmpeg": FFMPEG if find_ffmpeg() else None, "brew": bool(brew()),
                         "brew_path": brew() or ("/opt/homebrew/bin/brew" if platform.machine() == "arm64"
                                                 else "/usr/local/bin/brew")})

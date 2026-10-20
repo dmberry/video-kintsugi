@@ -206,6 +206,21 @@ body.noffmpeg main > section:not(#setup) { opacity: .4; pointer-events: none; }
 .setup { border-color: color-mix(in srgb, var(--amber) 55%, var(--border)); }
 .setup p { margin: 0 0 10px; }
 
+/* ---------------- watching a job */
+#watch { margin-top: 18px; }
+.steps { display: flex; flex-wrap: wrap; gap: 6px 18px; list-style: none; padding: 0; margin: 0 0 10px; font-size: 13px; color: var(--text-3); }
+.steps li::before { content: "○ "; }
+.steps li.now { color: var(--text); font-weight: 600; }
+.steps li.now::before { content: "● "; color: #d9aa3f; }
+.steps li.done { color: var(--text-2); }
+.steps li.done::before { content: "✓ "; color: var(--good); }
+#lanes { display: block; width: 100%; height: 150px; border-radius: 10px; background: #14161b; border: 1px solid #262a33; }
+.lanekey { display: flex; gap: 18px; font-size: 12px; color: var(--text-3); margin-top: 6px; }
+.lanekey span::before { content: ""; display: inline-block; width: 14px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.lanekey .k-before::before { background: #6f7480; }
+.lanekey .k-after::before { background: #d9aa3f; }
+.lanekey .k-target::before { background: none; border-top: 2px dashed #e9eaee; height: 0; }
+
 dialog { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); padding: 22px; width: min(520px, calc(100vw - 32px)); box-shadow: 0 20px 60px rgba(5,8,20,.35); }
 .about-dlg { width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
 .about-dlg .about-mark { display: block; width: 72px; height: 72px; margin: 4px auto 10px; }
@@ -350,6 +365,11 @@ dialog .row { justify-content: flex-end; margin-top: 16px; }
       <button class="b primary big" id="start" disabled>Join and mend</button>
       <button class="b hidden" id="cancel">Cancel</button>
       <span class="state" id="startnote"></span>
+    </div>
+    <div id="watch" class="hidden">
+      <ol class="steps" id="steps"></ol>
+      <canvas id="lanes" aria-label="Loudness over the recording, before and after"></canvas>
+      <div class="lanekey"><span class="k-before">Original</span><span class="k-after">Fixed</span><span class="k-target">Target</span></div>
     </div>
     <div id="progress" class="hidden">
       <div class="bar"><i id="barfill"></i></div>
