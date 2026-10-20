@@ -269,6 +269,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         case "ready":
             pageReady = true
             if !pending.isEmpty { addPaths(pending); pending = [] }
+            if let path = ProcessInfo.processInfo.environment["KINTSUGI_SCREENSHOT"] { screenshot(path) }
         case "choose-files":
             chooseFiles(start)
         case "choose-folder":
@@ -338,6 +339,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     func webView(_ w: WKWebView, didFinish nav: WKNavigation!) {
         if w.url?.host == "127.0.0.1" { window.title = appName }
+    }
+
+    /// For the README: KINTSUGI_SCREENSHOT=out.png (with KINTSUGI_SCREENSHOT_JS to set the page up
+    /// and KINTSUGI_SCREENSHOT_SIZE=WxH) saves an image of this window, shadow included, and quits.
+    func screenshot(_ path: String) {
+        let env = ProcessInfo.processInfo.environment
+        if let size = env["KINTSUGI_SCREENSHOT_SIZE"]?.split(separator: "x").compactMap({ Double($0) }), size.count == 2 {
+            window.setContentSize(NSSize(width: size[0], height: size[1]))
+            window.center()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            self.web.evaluateJavaScript(env["KINTSUGI_SCREENSHOT_JS"] ?? "0") { _, _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    // CGWindowListCreateImage is withdrawn from the Swift SDK but still works for an app's own windows
+                    typealias Create = @convention(c) (CGRect, UInt32, UInt32, UInt32) -> Unmanaged<CGImage>?
+                    if let sym = dlsym(dlopen(nil, RTLD_NOW), "CGWindowListCreateImage"),
+                       let img = unsafeBitCast(sym, to: Create.self)(.null, 1 << 3, UInt32(self.window.windowNumber), 0)?.takeRetainedValue(),
+                       let png = NSBitmapImageRep(cgImage: img).representation(using: .png, properties: [:]) {
+                        try? png.write(to: URL(fileURLWithPath: path))
+                    }
+                    self.quitting = true
+                    NSApp.terminate(nil)
+                }
+            }
+        }
     }
 
     // ---------------------------------------------------------------- failures

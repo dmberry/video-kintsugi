@@ -9,9 +9,11 @@ Video Kintsugi fixes the sound of recorded lectures and talks, and joins a recor
 
 The originals are never changed. The result is saved beside the first recording as `name (kintsugi).mov` unless you choose another name or folder, and it never replaces an existing file.
 
-<p align="center"><img src="branding/screenshot.png" alt="Two recordings ready to join, the filter chain shown as a mixing desk, a before-and-after preview and the command that will run" width="80%"></p>
+<p align="center"><img src="branding/screenshot-recordings.png" alt="The Video Kintsugi window with two parts of a lecture listed in order, ready to join" width="80%"></p>
 
 ## The sound
+
+<p align="center"><img src="branding/screenshot.png" alt="The filter chain as a mixing desk: seven channel strips from Mono to Loudness, each with an on/off light, knobs and a fader" width="80%"></p>
 
 The sound goes through a chain of FFmpeg audio filters, shown as a mixing desk with one channel strip per filter, worked from left to right. Each strip has a light that switches it on or off, knobs for its settings and a fader for its main one. Knobs turn by dragging up or down (hold Shift for fine control), by scrolling or with the arrow keys; a double-click resets a knob or fader. **Add a filter** puts a new strip before the final loudness stage. The **Text** view shows the same chain as FFmpeg reads it, one filter per line, and can be edited directly; a line starting with `#` is bypassed.
 
@@ -84,7 +86,7 @@ The app is a native window (`mac/VideoKintsugi.swift`, AppKit and WebKit) around
 | `make-app.sh` | build the Mac app (or, with `--browser`, the browser launcher) and the Quick Action |
 | `launch.sh` | start the server and open the page in the browser |
 | `quick-action/` | the Finder Quick Action template |
-| `branding/` | icon, screenshot and the headless-Chrome script used to take it |
+| `branding/` | icon and screenshots (taken by the app itself: run it with `KINTSUGI_SCREENSHOT=out.png`, optionally `KINTSUGI_SCREENSHOT_SIZE=1040x880` and `KINTSUGI_SCREENSHOT_JS` to set the page up) |
 
 ## The name
 
