@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video Kintsugi</title>
+<meta name="description" content="Join recordings and clean up their sound with ffmpeg, on your Mac.">
+<link rel="icon" href="branding/mark.svg" type="image/svg+xml">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f3f2ee;
+  --surface: #fcfcfb;
+  --surface-2: #f0efec;
+  --border: #e2e0da;
+  --text: #0b0b0b;
+  --text-2: #52514e;
+  --text-3: #85837d;
+  --accent: #2a78d6;
+  --accent-soft: #dbe9fb;
+  --good: #0c8a0c;
+  --critical: #d03b3b;
+  --amber: #b7791f;
+  --shadow: 0 1px 2px rgba(10,14,30,.05), 0 8px 24px rgba(10,14,30,.06);
+  --ink-1: #0c1020;
+  --s-text: #e9eefb;
+  --s-text-2: #a9b3cf;
+  --s-text-3: #6f7a99;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f1116; --surface: #171a21; --surface-2: #1f232c; --border: #2c313c;
+    --text: #ffffff; --text-2: #c3c2b7; --text-3: #8d8c84;
+    --accent: #3987e5; --accent-soft: #17345e; --shadow: none; --good: #3cc13c; --amber: #e0a43a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1116; --surface: #171a21; --surface-2: #1f232c; --border: #2c313c;
+  --text: #ffffff; --text-2: #c3c2b7; --text-3: #8d8c84;
+  --accent: #3987e5; --accent-soft: #17345e; --shadow: none; --good: #3cc13c; --amber: #e0a43a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); max-width: 100%; overflow-x: clip; }
+body { font: 15px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", sans-serif; min-height: 100vh; }
+.hidden { display: none !important; }
+.muted { color: var(--text-3); }
+.small { font-size: 13px; }
+a { color: var(--accent); }
+
+/* ---------------- app bar and menus */
+.appbar { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 16px; padding: 0 16px; height: 50px;
+          background: var(--ink-1); color: var(--s-text); box-shadow: 0 1px 0 rgba(255,255,255,.04), 0 6px 20px rgba(5,8,20,.25); }
+.brand { display: flex; align-items: center; gap: 9px; font-weight: 650; letter-spacing: -.01em; font-size: 16px; white-space: nowrap; }
+.brand .ver { font-size: 10.5px; font-weight: 500; color: var(--s-text-3); letter-spacing: 0; margin-left: -4px; align-self: flex-end; margin-bottom: 15px; }
+.brand img { width: 26px; height: 26px; border-radius: 7px; }
+.menubar { display: flex; gap: 2px; }
+.menubar > div { position: relative; }
+.menubar .top { background: none; border: 0; color: var(--s-text-2); font: inherit; font-size: 13.5px; padding: 5px 10px; border-radius: 6px; cursor: default; }
+.menubar .top:hover, .menubar .top[aria-expanded="true"] { background: rgba(255,255,255,.09); color: var(--s-text); }
+.menu { position: absolute; top: calc(100% + 7px); left: 0; min-width: min(270px, calc(100vw - 16px)); max-width: calc(100vw - 16px); padding: 5px; z-index: 60;
+        background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 36px rgba(5,8,20,.28); }
+.menu button { display: flex; width: 100%; align-items: center; gap: 10px; background: none; border: 0; text-align: left;
+               font: inherit; font-size: 13.5px; color: var(--text); padding: 6px 10px 6px 26px; border-radius: 6px; cursor: default; position: relative; }
+.menu button:hover:not(:disabled), .menu button:focus-visible { background: var(--accent); color: #fff; outline: none; }
+.menu button:hover:not(:disabled) kbd { color: rgba(255,255,255,.85); }
+.menu button:disabled { color: var(--text-3); }
+.menu button[aria-checked="true"]::before { content: "✓"; position: absolute; left: 9px; }
+.menu kbd { margin-left: auto; font: inherit; font-size: 12.5px; color: var(--text-3); }
+.menu hr { border: 0; border-top: 1px solid var(--border); margin: 5px 6px; }
+
+main { max-width: 1000px; margin: 0 auto; padding: 22px 16px 70px; display: grid; gap: 18px; }
+main > * { min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; box-shadow: var(--shadow); min-width: 0; }
+h2 { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .08em; color: var(--text-2); margin: 0 0 14px; display: flex; align-items: baseline; gap: 10px; }
+h2 .step { color: var(--accent); }
+h2 .aside { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 13px; color: var(--text-3); }
+
+/* ---------------- recordings */
+#drop { border: 1.5px dashed color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 14px; padding: 30px 18px 26px; text-align: center; cursor: pointer; }
+#drop.over { border-style: solid; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+#drop .big { font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+#drop.compact { padding: 12px; }
+#drop.compact .big { font-size: 14px; font-weight: 500; color: var(--text-2); }
+#drop.compact .sub { display: none; }
+#files { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 8px; }
+#files:empty { display: none; }
+#files li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface-2); }
+#files li.dragging { opacity: .45; }
+#files li.target { border-color: var(--accent); }
+#files .grip { cursor: grab; color: var(--text-3); font-size: 15px; user-select: none; }
+#files .num { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex: none;
+              background: var(--accent-soft); color: var(--accent); font-size: 12.5px; font-weight: 650; }
+#files .meta { flex: 1; min-width: 0; }
+#files .name { font-weight: 600; overflow-wrap: anywhere; }
+#files .info { color: var(--text-3); font-size: 12.5px; overflow-wrap: anywhere; }
+#files .odd { color: var(--amber); }
+#files .btns { display: flex; gap: 4px; }
+.pathrow { display: flex; gap: 8px; margin-top: 12px; }
+.pathrow input { flex: 1; min-width: 0; }
+.totals { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; font-size: 13px; color: var(--text-2); }
+.errors { color: var(--critical); font-size: 13px; margin-top: 8px; white-space: pre-wrap; }
+
+/* ---------------- form */
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+.full { grid-column: 1 / -1; }
+.f { display: grid; gap: 5px; font-size: 13px; color: var(--text-2); font-weight: 500; min-width: 0; align-content: start; }
+.f .hint { font-weight: 400; color: var(--text-3); }
+input[type=text], input[type=number], select, textarea {
+  font: inherit; font-size: 14px; color: var(--text); background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px; width: 100%; min-width: 0; }
+input:focus, select:focus, textarea:focus { outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent); outline-offset: 0; border-color: var(--accent); }
+textarea { font-family: var(--mono); font-size: 13px; line-height: 1.55; resize: vertical; }
+#filters { min-height: 190px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+button.b { font: inherit; font-size: 13.5px; font-weight: 550; color: var(--text); background: var(--surface-2); border: 1px solid var(--border);
+           border-radius: 9px; padding: 7px 13px; cursor: pointer; white-space: nowrap; }
+button.b:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+button.b:disabled { color: var(--text-3); cursor: default; }
+button.b.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.b.big { font-size: 15.5px; padding: 11px 26px; border-radius: 11px; }
+button.b.icon { padding: 3px 8px; font-size: 13px; color: var(--text-2); }
+button.b.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.about { color: var(--text-2); font-size: 13.5px; margin: 0; }
+.chainok { font-size: 12.5px; color: var(--good); }
+.chainbad { font-size: 12.5px; color: var(--critical); overflow-wrap: anywhere; }
+.edited { font-size: 12px; color: var(--amber); font-weight: 600; }
+details { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 12px; }
+summary { cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--text-2); }
+.ref { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+.ref td { padding: 7px 8px 7px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+.ref td:first-child { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+.ref td:last-child { width: 1%; }
+.ref code { font-family: var(--mono); font-size: 12px; color: var(--text-2); overflow-wrap: anywhere; }
+
+.preview { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.preview h3 { font-size: 13px; margin: 0 0 10px; color: var(--text-2); font-weight: 600; }
+.preview input[type=text] { width: 90px; }
+.preview input[type=number] { width: 70px; }
+.ab { display: inline-flex; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+.ab button { font: inherit; font-size: 13.5px; font-weight: 600; border: 0; background: var(--surface-2); color: var(--text-2); padding: 7px 16px; cursor: pointer; }
+.ab button + button { border-left: 1px solid var(--border); }
+.ab button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.lufs { font-size: 13px; color: var(--text-2); }
+
+/* ---------------- output */
+.folder { display: flex; gap: 8px; align-items: center; }
+.folder .path { flex: 1; min-width: 0; font-size: 13.5px; color: var(--text-2); overflow-wrap: anywhere; padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; }
+.cmd { position: relative; margin-top: 4px; }
+.cmd pre { margin: 0; font-family: var(--mono); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+           background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; max-height: 220px; overflow: auto; color: var(--text-2); }
+.notes { margin: 10px 0 0; padding-left: 18px; font-size: 13px; color: var(--text-2); }
+.go { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 18px; }
+.bar { height: 8px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; margin: 14px 0 8px; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+.state { font-size: 13.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.done { color: var(--good); font-weight: 600; }
+.fail { color: var(--critical); white-space: pre-wrap; font-size: 13px; }
+
+/* ---------------- the desk */
+.desk { display: flex; gap: 8px; align-items: stretch; overflow-x: auto; padding: 14px; border-radius: 14px;
+        background: #14161b; border: 1px solid #262a33; --gold: #d9aa3f; --k: #2a2e37; color: #e9eaee; }
+.desk .io { writing-mode: vertical-rl; transform: rotate(180deg); align-self: center; font-size: 10.5px; letter-spacing: .3em; color: #6f7480; font-weight: 700; }
+.strip { flex: none; width: 104px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 8px 8px;
+         background: #1e2128; border: 1px solid #2c303a; border-radius: 10px; }
+.strip.off > :not(.sh):not(.sf) { opacity: .38; }
+.strip .sh { display: flex; width: 100%; justify-content: space-between; align-items: center; }
+.strip .sn { font: 600 11px var(--mono); color: #7d8290; }
+.strip .led { width: 26px; height: 14px; border-radius: 4px; border: 1px solid #3a3f4a; background: #2a2e37; cursor: pointer; padding: 0; }
+.strip .led[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); box-shadow: 0 0 10px rgba(217,170,63,.55); }
+.strip .st { font-size: 12.5px; font-weight: 650; text-align: center; line-height: 1.2; }
+.strip .sw { font-size: 10.5px; color: #8a8f9b; text-align: center; line-height: 1.25; min-height: 26px; }
+.strip .sk { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+.knob { display: grid; justify-items: center; cursor: ns-resize; touch-action: none; user-select: none; border-radius: 8px; padding: 2px 4px; }
+.knob:focus-visible { outline: 2px solid var(--gold); }
+.knob svg { width: 46px; height: 46px; }
+.knob .kbody { fill: var(--k); stroke: #3a3f4a; }
+.knob .ktrack { fill: none; stroke: #2f333d; stroke-width: 3; stroke-linecap: round; }
+.knob .karc { fill: none; stroke: var(--gold); stroke-width: 3; stroke-linecap: round; }
+.knob .kline { stroke: #e9eaee; stroke-width: 2.5; stroke-linecap: round; }
+.knob .kl { font-size: 10.5px; color: #a7acb8; letter-spacing: .02em; }
+.knob .kv { font: 500 11px var(--mono); color: #e9eaee; margin-top: -2px; }
+.tg { display: inline-flex; align-items: center; gap: 6px; font: 500 11px inherit; font-size: 11px; color: #c9ccd4; background: var(--k); border: 1px solid #3a3f4a; border-radius: 6px; padding: 3px 8px; cursor: pointer; margin: 4px 0; }
+.tg i { width: 8px; height: 8px; border-radius: 50%; background: #444955; }
+.tg[aria-pressed="true"] i { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
+.fader { display: grid; justify-items: center; gap: 4px; margin-top: 4px; }
+.fader .fv { font: 500 11px var(--mono); color: var(--gold); min-height: 15px; }
+.fader .fl { font-size: 10.5px; color: #a7acb8; }
+.fwell { height: 140px; width: 34px; display: grid; place-items: center; border-radius: 6px;
+         background: repeating-linear-gradient(to bottom, transparent 0 13px, #2f333d 13px 14px); }
+.fader input[type=range] { writing-mode: vertical-lr; direction: rtl; appearance: none; -webkit-appearance: none; width: 34px; height: 140px; background: transparent; margin: 0; cursor: ns-resize; }
+.fader input[type=range]::-webkit-slider-runnable-track { width: 4px; background: #0d0f13; border-radius: 2px; border: 1px solid #343843; }
+.fader input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 16px; border-radius: 3px; background: #d7d9de; border: 1px solid #0d0f13; box-shadow: inset 0 -3px 0 #a9adb6, inset 0 2px 0 #fff; margin-left: -14px; }
+.fader input[type=range]::-moz-range-track { width: 4px; background: #0d0f13; border-radius: 2px; }
+.fader input[type=range]::-moz-range-thumb { width: 30px; height: 16px; border-radius: 3px; background: #d7d9de; border: 1px solid #0d0f13; }
+.nofader { flex: none; height: 30px; font-size: 10.5px; color: #6f7480; }
+.strip .rawargs { font: 11px var(--mono); background: var(--k); color: #e9eaee; border: 1px solid #3a3f4a; border-radius: 6px; padding: 5px; width: 100%; }
+.strip .sf { display: flex; gap: 4px; margin-top: 4px; }
+.strip .sf button { font-size: 10px; background: var(--k); color: #a7acb8; border: 1px solid #3a3f4a; border-radius: 5px; padding: 2px 7px; cursor: pointer; }
+.strip .sf button:hover { color: #fff; border-color: #5a606d; }
+
+dialog { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); padding: 22px; width: min(520px, calc(100vw - 32px)); box-shadow: 0 20px 60px rgba(5,8,20,.35); }
+dialog::backdrop { background: rgba(5,8,20,.35); }
+dialog h3 { margin: 0 0 12px; font-size: 16px; }
+dialog p { font-size: 14px; color: var(--text-2); }
+dialog .row { justify-content: flex-end; margin-top: 16px; }
+
+@media (max-width: 680px) {
+  .grid { grid-template-columns: 1fr; }
+  .menubar .top { padding: 5px 7px; }
+  .card { padding: 16px; }
+  #files .grip { display: none; }
+}
+</style>
+</head>
+<body>
+<header class="appbar">
+  <div class="brand"><img src="branding/mark.svg" alt=""><span>Video Kintsugi</span><span class="ver" id="ver"></span></div>
+  <nav class="menubar" id="menubar">
+    <div><button class="top" data-menu="file">File</button>
+      <div class="menu hidden" id="menu-file" role="menu">
+        <button data-act="add">Add Recordings…<kbd>⌘O</kbd></button>
+        <button data-act="clear">Clear List</button>
+        <hr>
+        <button data-act="start">Join and Mend<kbd>⌘↩</kbd></button>
+        <button data-act="reveal" id="m-reveal" disabled>Show Result in Finder</button>
+        <hr>
+        <button data-act="quit">Quit Video Kintsugi</button>
+      </div></div>
+    <div><button class="top" data-menu="presets">Presets</button>
+      <div class="menu hidden" id="menu-presets" role="menu">
+        <div id="m-presets"></div>
+        <hr>
+        <button data-act="save">Save Changes to Preset</button>
+        <button data-act="saveas">Save as New Preset…</button>
+        <button data-act="delete">Delete Preset…</button>
+        <hr>
+        <button data-act="restore">Restore Built-in Presets…</button>
+      </div></div>
+    <div><button class="top" data-menu="help">Help</button>
+      <div class="menu hidden" id="menu-help" role="menu">
+        <button data-act="howto">How Video Kintsugi Works</button>
+        <button data-act="about">About Video Kintsugi</button>
+      </div></div>
+  </nav>
+</header>
+
+<main>
+  <section class="card">
+    <h2><span class="step">1</span> Recordings <span class="aside" id="total"></span></h2>
+    <ul id="files"></ul>
+    <div id="drop" tabindex="0">
+      <div class="big">Drop recordings here, or click to choose</div>
+      <div class="sub muted small">One recording to fix its sound. Two or more to join them in order (drag the rows to reorder).</div>
+    </div>
+    <div class="pathrow"><input type="text" id="pathin" placeholder="…or paste a file path and press Return" spellcheck="false"><button class="b" id="pathadd">Add</button></div>
+    <div class="errors" id="fileerr"></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">2</span> Sound <span class="aside"><span class="edited hidden" id="edited">edited, not saved</span></span></h2>
+    <div class="grid">
+      <label class="f">Preset<select id="preset"></select></label>
+      <label class="f">Audio quality<select id="bitrate">
+        <option value="">Unchanged (copy when possible)</option>
+        <option value="64k">64 kbps</option><option value="96k">96 kbps (speech, mono)</option>
+        <option value="128k">128 kbps</option><option value="160k">160 kbps (stereo)</option>
+        <option value="192k">192 kbps</option><option value="256k">256 kbps</option></select></label>
+      <p class="about full" id="about"></p>
+      <div class="full row" style="justify-content:space-between">
+        <span class="f">Filter chain <span class="hint">applied in order, left to right</span></span>
+        <span class="row"><select id="addfilter" aria-label="Add a filter" style="width:auto"></select>
+        <span class="ab"><button id="view-desk" aria-pressed="true">Desk</button><button id="view-text" aria-pressed="false">Text</button></span></span>
+      </div>
+      <div class="full desk" id="desk"></div>
+      <label class="f full hidden" id="textview"><span class="hint">ffmpeg audio filters, one per line. A line starting with # is bypassed (or is a note).</span>
+        <textarea id="filters" spellcheck="false"></textarea></label>
+      <div class="full row" style="justify-content:space-between">
+        <span id="chainstate" class="chainok"></span>
+        <span class="row"><button class="b" id="revert" disabled>Revert</button><button class="b" id="save" disabled>Save to Preset</button><button class="b" id="saveas">Save as New…</button></span>
+      </div>
+    </div>
+
+    <div class="preview">
+      <h3>Listen before and after</h3>
+      <div class="row">
+        <span class="small">From</span><input type="text" id="pvat" value="5:00" spellcheck="false" aria-label="Preview start time">
+        <span class="small">for</span><input type="number" id="pvlen" value="20" min="3" max="60" aria-label="Preview length in seconds"><span class="small">seconds</span>
+        <button class="b" id="pvmake" disabled>Make preview</button>
+        <span class="ab hidden" id="ab"><button id="pvbefore" aria-pressed="false">Before</button><button id="pvafter" aria-pressed="true">After</button></span>
+        <button class="b icon hidden" id="pvplay">▶︎ Play</button>
+        <label class="small row" style="gap:6px;margin-left:auto"><input type="checkbox" id="pvauto" checked> Update as the chain changes</label>
+      </div>
+      <div class="lufs muted" id="pvinfo"></div>
+      <audio id="pvaudio" preload="auto"></audio>
+    </div>
+
+    <details>
+      <summary>Filter reference</summary>
+      <table class="ref" id="ref"></table>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">3</span> Result</h2>
+    <div class="grid">
+      <label class="f full">File name<input type="text" id="outname" spellcheck="false"></label>
+      <div class="f full">Folder
+        <div class="folder"><span class="path" id="outdir">Same folder as the first recording</span>
+          <button class="b" id="choosedir">Choose…</button><button class="b hidden" id="resetdir">Same as first</button></div></div>
+      <label class="f">Video<select id="video">
+        <option value="auto">Copy when the files share a format (fast, no loss)</option>
+        <option value="reencode">Always re-encode</option></select></label>
+      <div class="f full">Command <span class="hint">What will run. Copy it to run it yourself in Terminal.</span></div>
+      <div class="full cmd"><pre id="cmd">Add recordings to see the command.</pre></div>
+      <div class="full row"><button class="b" id="copycmd" disabled>Copy command</button></div>
+    </div>
+    <ul class="notes" id="notes"></ul>
+    <div class="go">
+      <button class="b primary big" id="start" disabled>Join and mend</button>
+      <button class="b hidden" id="cancel">Cancel</button>
+      <span class="state" id="startnote"></span>
+    </div>
+    <div id="progress" class="hidden">
+      <div class="bar"><i id="barfill"></i></div>
+      <div class="state" id="state"></div>
+    </div>
+    <div id="result" class="hidden">
+      <p class="state"><span class="done" id="donename"></span> <span id="donemeta"></span></p>
+      <div class="row"><button class="b" id="reveal">Show in Finder</button><button class="b" id="openout">Open</button></div>
+    </div>
+    <div class="fail" id="joberr"></div>
+  </section>
+</main>
+
+<dialog id="dlg-saveas">
+  <h3>Save as new preset</h3>
+  <div class="grid">
+    <label class="f full">Name<input type="text" id="sa-name"></label>
+    <label class="f full">Description<input type="text" id="sa-about"></label>
+  </div>
+  <div class="row"><button class="b" data-close>Cancel</button><button class="b primary" id="sa-ok">Save</button></div>
+</dialog>
+
+<dialog id="dlg-confirm">
+  <h3 id="cf-title"></h3>
+  <p id="cf-text"></p>
+  <div class="row"><button class="b" data-close>Cancel</button><button class="b primary" id="cf-ok">OK</button></div>
+</dialog>
+
+<dialog id="dlg-howto">
+  <h3>How Video Kintsugi works</h3>
+  <p>Add one recording to fix its sound, or several to join them in the order listed. When the files share a video format (as two parts of the same recording do), the video is copied without re-encoding, so a long lecture takes a minute or two. Files that differ are re-encoded to match the first.</p>
+  <p>The sound goes through the filter chain in step 2, shown as a mixing desk: each channel strip is one ffmpeg audio filter, worked in order from left to right. The light switches a strip on or off; knobs turn by dragging up or down, scrolling or the arrow keys, and a double-click resets one. The Text view shows the same chain as ffmpeg reads it. The presets are starting points: adjust them, make a short preview to compare before and after (it updates as you turn), and save what works as a preset of your own.</p>
+  <p>The result is written beside the first recording unless you choose a folder, and never replaces an existing file. The originals are not changed.</p>
+  <div class="row"><button class="b primary" data-close>Close</button></div>
+</dialog>
+
+<dialog id="dlg-about">
+  <h3>Video Kintsugi <span class="muted small" id="aboutver"></span></h3>
+  <p>Joins recordings and cleans up their sound.</p>
+  <p>Created by David M. Berry. © 2026 David M. Berry. Free software under the GNU General Public License, version 3.</p>
+  <p class="small muted">Uses FFmpeg by the FFmpeg developers. Your presets are kept in ~/Library/Application Support/Video Kintsugi/presets.json.</p>
+  <div class="row"><button class="b primary" data-close>Close</button></div>
+</dialog>
+
+<script src="desk.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
